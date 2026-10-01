@@ -1,0 +1,166 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Interactive Architecture Diagram — Generic Reference</title>
+<style>
+html,body{margin:0;width:100%;height:100%;background:#fff;font-family:Inter,Segoe UI,Roboto,Arial,sans-serif;color:#172033}
+body{overflow:hidden}.page{width:100vw;height:100vh}.canvas{width:100%;height:100%;overflow:auto;background:#fff}
+#diagram{min-width:max-content;min-height:100%;display:flex;justify-content:center;align-items:flex-start;padding:24px}
+#diagram svg{max-width:none!important;width:auto!important;height:auto!important}
+.tip{position:fixed;bottom:12px;left:50%;transform:translateX(-50%);background:rgba(255,255,255,.96);border:1px solid #d8dfeb;border-radius:999px;padding:6px 11px;color:#68758a;font-size:12px;box-shadow:0 4px 15px rgba(30,45,75,.1);pointer-events:none}
+.error{margin:30px;padding:16px;border:1px solid #dfabb7;border-radius:10px;background:#fff1f4;color:#9c3149;max-width:800px}
+</style>
+<script src="https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.min.js"></script>
+</head>
+<body>
+<div class="page"><div class="canvas"><div id="diagram"></div></div></div>
+<div class="tip">Click a block to expand in place • Click its expanded header to collapse</div>
+<script>
+mermaid.initialize({startOnLoad:false,securityLevel:"loose",theme:"base",flowchart:{htmlLabels:true,curve:"basis",nodeSpacing:34,rankSpacing:46,padding:9,useMaxWidth:false},themeVariables:{background:"#fff",primaryColor:"#edf3ff",primaryBorderColor:"#5578b5",primaryTextColor:"#172033",secondaryColor:"#eaf7f2",secondaryBorderColor:"#4b967d",secondaryTextColor:"#172033",tertiaryColor:"#fff6dc",tertiaryBorderColor:"#aa8425",tertiaryTextColor:"#172033",lineColor:"#76849b",textColor:"#172033",clusterBkg:"#f8fafc",clusterBorder:"#cbd5e3",edgeLabelBackground:"#fff",fontSize:"13px"}});
+
+const state={processor:false,execution:false,alu:false,memory:false,control:false};
+let renderCounter=0;
+
+function processorBlock(){
+ if(!state.processor)return `PROC["<b>PROCESSING ENGINE</b><br/>64-bit datapath<br/><small>CLICK TO EXPAND</small>"]`;
+ return `subgraph PROC_EXP["PROCESSING ENGINE — CLICK TO COLLAPSE"]
+ direction TB
+ PH["<b>PROCESSING ENGINE</b><br/>64-bit interface"]
+ RF["Register File<br/>32 × 64-bit"]
+ DEC["Instruction / Command Decode"]
+ ${executionBlock()}
+ WB["Writeback / Output Register<br/>64 bits"]
+ PH --> DEC --> RF --> EX --> WB
+  end`;
+}
+
+function executionBlock(){
+ if(!state.execution)return `EX["<b>EXECUTION UNIT</b><br/>64-bit<br/><small>CLICK TO EXPAND</small>"]\n click EX call toggleExecution "Expand / collapse execution unit"`;
+ return `subgraph EX_EXP["EXECUTION UNIT — CLICK TO COLLAPSE"]
+ direction LR
+ EXH["<b>EXECUTION UNIT</b>"]
+ A["Operand A<br/>64 bits"]
+ B["Operand B<br/>64 bits"]
+ ${state.alu?aluBlock():`ALU["<b>ALU</b><br/>Add / Sub / Logic<br/>64-bit<br/><small>CLICK TO EXPAND</small>"]\n click ALU call toggleALU "Expand / collapse ALU"`}
+ MUX["Result MUX<br/>64 bits"]
+ XOUT["Execution Result<br/>64 bits"]
+ EXH --> A
+ EXH --> B
+ A --> ALU
+ B --> ALU
+ ALU --> MUX --> XOUT
+  end`;
+}
+
+function aluBlock(){
+ return `subgraph ALU_EXP["ALU — CLICK TO COLLAPSE"]
+ direction TB
+ ALUH["<b>64-BIT ALU</b>"]
+ ADD["Adder<br/>64-bit"]
+ SUB["Subtractor<br/>64-bit"]
+ LOG["Logic Unit<br/>AND / OR / XOR<br/>64-bit"]
+ SEL["Operation Select MUX<br/>64 bits"]
+ ALUH --> ADD
+ ALUH --> SUB
+ ALUH --> LOG
+ ADD --> SEL
+ SUB --> SEL
+ LOG --> SEL
+  end`;
+}
+
+function memoryBlock(){
+ if(!state.memory)return `MEM["<b>MEMORY SUBSYSTEM</b><br/>1K × 64-bit SRAM<br/><small>CLICK TO EXPAND</small>"]\n click MEM call toggleMemory "Expand / collapse memory"`;
+ return `subgraph MEM_EXP["MEMORY SUBSYSTEM — CLICK TO COLLAPSE"]
+ direction TB
+ MEMH["<b>MEMORY SUBSYSTEM</b>"]
+ ADDR["Address Generator<br/>10 bits"]
+ RAM["SRAM<br/>1024 × 64-bit"]
+ RD["Read Data<br/>64 bits"]
+ WR["Write Data<br/>64 bits"]
+ MEMH --> ADDR --> RAM
+ RAM --> RD
+ WR --> RAM
+  end`;
+}
+
+function controlBlock(){
+ if(!state.control)return `CTRL["<b>CONTROL UNIT</b><br/>FSM + counters<br/><small>CLICK TO EXPAND</small>"]\n click CTRL call toggleControl "Expand / collapse controller"`;
+ return `subgraph CTRL_EXP["CONTROL UNIT — CLICK TO COLLAPSE"]
+ direction TB
+ CH["<b>CONTROL UNIT</b>"]
+ FSM["FSM<br/>fixed sequencing"]
+ C0["Stage Counter<br/>3 bits"]
+ C1["Address Counter<br/>10 bits"]
+ VALID["Enable / Valid / Ready<br/>1 bit signals"]
+ CH --> FSM
+ FSM --> C0
+ FSM --> C1
+ FSM --> VALID
+  end`;
+}
+
+function buildDiagram(){
+return `flowchart LR
+TITLE["<b>INTERACTIVE SYSTEM ARCHITECTURE</b><br/>Generic reference implementation"]
+IN["<b>INPUT</b><br/>64 bits"]
+${processorBlock()}
+${memoryBlock()}
+OUT["<b>OUTPUT</b><br/>64 bits"]
+${controlBlock()}
+IN -->|"64 bits"| ${state.processor?'DEC':'PROC'}
+${state.processor?'WB':'PROC'} -->|"64 bits"| MEM
+MEM -->|"64 bits"| OUT
+${state.control?'FSM':'CTRL'} -.->|"control"| ${state.processor?'PH':'PROC'}
+${state.control?'FSM':'CTRL'} -.->|"control"| MEM
+TITLE --> IN
+classDef core fill:#edf3ff,stroke:#5578b5,stroke-width:2px,color:#172033;
+classDef green fill:#eaf7f2,stroke:#4b967d,stroke-width:2px,color:#172033;
+classDef gold fill:#fff6dc,stroke:#aa8425,stroke-width:2px,color:#172033;
+class PROC,PROC_EXP,EX,EX_EXP,ALU,ALU_EXP,RF,DEC,WB,PH,A,B,MUX,XOUT core;
+class MEM,MEM_EXP,RAM,ADDR,RD,WR green;
+class CTRL,CTRL_EXP,FSM,C0,C1,VALID gold;
+`;
+}
+
+function addInteractions(){
+ document.querySelectorAll('#diagram g.node').forEach(node=>{
+   const t=(node.textContent||'').replace(/\s+/g,' ').trim().toUpperCase();
+   node.style.cursor='pointer';
+   if(t.includes('PROCESSING ENGINE')) node.onclick=toggleProcessor;
+   else if(t.includes('EXECUTION UNIT')) node.onclick=toggleExecution;
+   else if(t.includes('64-BIT ALU')) node.onclick=toggleALU;
+   else if(t.includes('MEMORY SUBSYSTEM')) node.onclick=toggleMemory;
+   else if(t.includes('CONTROL UNIT')) node.onclick=toggleControl;
+ });
+}
+
+function render(){
+ const target=document.getElementById('diagram');
+ if(typeof mermaid==='undefined'){
+   target.innerHTML='<div class="error"><b>Mermaid could not be loaded.</b><br>Internet access is required for this reference implementation.</div>';
+   return;
+ }
+ renderCounter++;
+ mermaid.render('architecture_'+renderCounter,buildDiagram()).then(r=>{
+   target.innerHTML=r.svg;
+   if(r.bindFunctions)r.bindFunctions(target);
+   addInteractions();
+ }).catch(e=>{
+   console.error(e);
+   target.innerHTML='<div class="error"><b>Architecture rendering error.</b><br><br>'+String(e).replace(/</g,'&lt;')+'</div>';
+ });
+}
+
+function toggleProcessor(){state.processor=!state.processor;render();}
+function toggleExecution(){state.execution=!state.execution;if(!state.processor)state.processor=true;render();}
+function toggleALU(){state.alu=!state.alu;if(!state.processor)state.processor=true;if(!state.execution)state.execution=true;render();}
+function toggleMemory(){state.memory=!state.memory;render();}
+function toggleControl(){state.control=!state.control;render();}
+
+document.addEventListener('DOMContentLoaded',render);
+</script>
+</body>
+</html>
